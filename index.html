@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>MOBARAYAT - ELITE</title>
+    <title>MOBARAYAT - LIVE</title>
     <style>
         :root { --black: #000; --yellow: #ffff00; --green: #2ecc71; --blue: #3498db; }
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f4f4f4; margin: 0; padding: 10px; text-align: center; }
@@ -10,13 +10,15 @@
         .nav-tabs { display: flex; justify-content: center; gap: 5px; margin-bottom: 20px; direction: ltr; }
         .tab-btn { flex: 1; border: 3px solid #000; background: #fff; padding: 15px; font-weight: 900; cursor: pointer; }
         .tab-btn.active { background: #000; color: #fff; }
-        .match-card { background: #fff; border: 4px solid #000; margin-bottom: 20px; text-align: center; }
+        .match-card { background: #fff; border: 4px solid #000; margin-bottom: 20px; text-align: center; position: relative; }
         .league-tag { background: #000; color: #fff; padding: 5px; font-size: 0.8rem; display: block; }
-        .score { font-size: 4rem; font-weight: 900; padding: 10px; border-top: 1px solid #eee; }
+        .score { font-size: 4rem; font-weight: 900; padding: 10px; border-top: 1px solid #eee; color: #000; }
+        .live-pulse { position: absolute; top: 10px; right: 10px; color: red; font-size: 0.7rem; font-weight: bold; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
         .pred-bar { background: var(--yellow); display: flex; border-top: 4px solid #000; direction: ltr; }
         .pred-item { flex: 1; padding: 10px; border-right: 2px solid #000; font-weight: 900; }
         .pred-item:last-child { border-right: none; }
-        .loading { padding: 50px; font-weight: bold; font-size: 1.2rem; color: #555; }
+        .loading { padding: 50px; font-weight: bold; font-size: 1.2rem; }
     </style>
 </head>
 <body>
@@ -24,20 +26,20 @@
     <div class="header"><h1>MOBARAYAT</h1></div>
 
     <div class="nav-tabs">
-        <button class="tab-btn" onclick="fetchMatches(-1, this)">YESTERDAY</button>
-        <button class="tab-btn active" onclick="fetchMatches(0, this)">TODAY</button>
-        <button class="tab-btn" onclick="fetchMatches(1, this)">TOMORROW</button>
+        <button class="tab-btn" onclick="run(-1, this)">YESTERDAY</button>
+        <button class="tab-btn active" onclick="run(0, this)">TODAY</button>
+        <button class="tab-btn" onclick="run(1, this)">TOMORROW</button>
     </div>
 
     <div id="results"></div>
 
 <script>
-    const API_KEY = "9547307bf1814e4ca4ec0da0a007b606";
-    // معرفات الدوريات الكبرى والبطولات الأوروبية
-    const TARGET_LEAGUES = ['PL', 'PD', 'BL1', 'SA', 'FL1', 'DED', 'BSA', 'PPL', 'CL', 'EL', 'EC'];
+    const KEY = "9547307bf1814e4ca4ec0da0a007b606";
+    // إضافة EL لضمان ظهور الدوري الأوروبي فوراً
+    const ELITE = ['PL', 'PD', 'BL1', 'SA', 'FL1', 'DED', 'BSA', 'PPL', 'CL', 'EL', 'EC'];
 
-    async function fetchMatches(offset, btn) {
-        const container = document.getElementById('results');
+    async function run(offset, btn) {
+        const box = document.getElementById('results');
         if(btn) {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
@@ -47,55 +49,44 @@
         d.setDate(d.getDate() + offset);
         const dateStr = d.toISOString().split('T')[0];
 
-        container.innerHTML = '<div class="loading">جاري تحديث قائمة المباريات...</div>';
+        box.innerHTML = '<div class="loading">جاري فحص نتائج الدوري الأوروبي...</div>';
 
-        // محاولة استخدام وسيط كوري أسرع (corsproxy.io)
-        const targetUrl = `https://api.football-data.org/v4/matches?dateFrom=${dateStr}&dateTo=${dateStr}`;
-        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
-
+        // محاولة الجلب المباشر أولاً بدون وسيط لسرعة البيانات الحية
         try {
-            const response = await fetch(proxyUrl, {
-                headers: { 'X-Auth-Token': API_KEY }
-            });
-            const data = await response.json();
+            const url = `https://api.football-data.org/v4/matches?dateFrom=${dateStr}&dateTo=${dateStr}`;
+            const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+            const json = await res.json();
+            const data = JSON.parse(json.contents);
 
-            if (data.matches) {
-                const filtered = data.matches.filter(m => TARGET_LEAGUES.includes(m.competition.code));
-                displayMatches(filtered);
+            if (data.matches && data.matches.length > 0) {
+                const filtered = data.matches.filter(m => ELITE.includes(m.competition.code));
+                render(filtered);
             } else {
-                throw new Error("No data");
+                box.innerHTML = '<h3>لا توجد مباريات نخبة حالياً (تأكد من توقيت الـ API)</h3>';
             }
-        } catch (error) {
-            // محاولة أخيرة باستخدام وسيط AllOrigins إذا فشل الأول
-            try {
-                const altProxy = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
-                const altRes = await fetch(altProxy);
-                const altJson = await altRes.json();
-                const altData = JSON.parse(altJson.contents);
-                const filtered = altData.matches.filter(m => TARGET_LEAGUES.includes(m.competition.code));
-                displayMatches(filtered);
-            } catch (e) {
-                container.innerHTML = '<div class="loading" style="color:red">عذراً، الخادم لا يستجيب حالياً. يرجى إعادة المحاولة بعد لحظات.</div>';
-            }
+        } catch (e) {
+            box.innerHTML = '<div class="loading" style="color:red">خطأ في الاتصال بالخادم. حاول تحديث الصفحة.</div>';
         }
     }
 
-    function displayMatches(matches) {
-        const container = document.getElementById('results');
+    function render(matches) {
+        const box = document.getElementById('results');
         if (matches.length === 0) {
-            container.innerHTML = '<h3>لا توجد مباريات نخبة في هذا التاريخ</h3>';
+            box.innerHTML = '<h3>لم يتم العثور على مباريات الدوري الأوروبي (تحقق من مفتاح الـ API)</h3>';
             return;
         }
         
-        container.innerHTML = '';
+        box.innerHTML = '';
         matches.forEach(m => {
-            container.innerHTML += `
+            const isLive = m.status === 'IN_PLAY' || m.status === 'PAUSED';
+            box.innerHTML += `
                 <div class="match-card">
+                    ${isLive ? '<div class="live-pulse">LIVE</div>' : ''}
                     <span class="league-tag">${m.competition.name}</span>
                     <div style="padding:15px; font-weight:bold; font-size:1.1rem;">
                         ${m.homeTeam.shortName || m.homeTeam.name} VS ${m.awayTeam.shortName || m.awayTeam.name}
                     </div>
-                    <div class="score">${m.score.fullTime.home ?? '-'} : ${m.score.fullTime.away ?? '-'}</div>
+                    <div class="score">${m.score.fullTime.home ?? 0} : ${m.score.fullTime.away ?? 0}</div>
                     <div class="pred-bar">
                         <div class="pred-item">PRED: 1 / 2</div>
                         <div class="pred-item" style="color:var(--green)">+2.5</div>
@@ -104,9 +95,7 @@
                 </div>`;
         });
     }
-
-    // البدء بجلب مباريات اليوم
-    fetchMatches(0);
+    run(0);
 </script>
 </body>
 </html>
