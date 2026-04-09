@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MOBARAYAT - PRO</title>
+    <title>MOBARAYAT - GLOBAL PREDICTIONS</title>
     <style>
-        :root { --yellow: #ffff00; --black: #000; --green: #2ecc71; }
+        :root { --yellow: #ffff00; --black: #000; --green: #2ecc71; --blue: #3498db; }
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f4f4f4; margin: 0; padding: 10px; }
         
         .header { background: #000; color: #fff; padding: 30px; border-bottom: 8px solid var(--yellow); text-align: center; margin-bottom: 20px; }
@@ -15,16 +15,19 @@
         .tab-btn { flex: 1; border: 4px solid #000; background: #fff; padding: 15px; font-weight: 900; cursor: pointer; transition: 0.2s; font-size: 0.9rem; }
         .tab-btn.active { background: #000; color: #fff; }
 
-        .match-card { background: #fff; border: 5px solid #000; margin-bottom: 20px; position: relative; box-shadow: 8px 8px 0px #000; max-width: 800px; margin-left: auto; margin-right: auto; overflow: hidden; }
+        .match-card { background: #fff; border: 5px solid #000; margin-bottom: 25px; position: relative; box-shadow: 8px 8px 0px #000; max-width: 800px; margin: 20px auto; overflow: hidden; }
         .league-tag { background: #000; color: #fff; padding: 6px; font-size: 0.8rem; font-weight: bold; text-align: center; display: block; }
         
-        .teams-row { display: flex; align-items: center; justify-content: space-between; padding: 20px; text-align: center; }
-        .team-name { flex: 1; font-size: 1.2rem; font-weight: 900; }
-        .score-box { flex: 0.6; font-size: 3rem; font-weight: 900; background: #f9f9f9; border: 2px solid #eee; margin: 0 10px; }
+        .teams-row { display: flex; align-items: center; justify-content: space-between; padding: 25px; text-align: center; }
+        .team-name { flex: 1; font-size: 1.3rem; font-weight: 900; }
+        .score-box { flex: 0.5; font-size: 3.5rem; font-weight: 900; background: #f0f0f0; border: 3px solid #000; margin: 0 15px; }
         
         .pred-bar { background: var(--yellow); display: flex; border-top: 4px solid #000; direction: ltr; }
         .pred-item { flex: 1; padding: 12px; border-right: 2px solid #000; font-weight: 900; font-size: 1rem; text-align: center; color: #000; }
         .pred-item:last-child { border-right: none; }
+        
+        .status-tag { position: absolute; top: 40px; right: 10px; background: red; color: white; padding: 2px 8px; font-size: 0.7rem; font-weight: bold; display: none; }
+        .loading { font-size: 1.5rem; font-weight: bold; padding: 60px; text-align: center; }
     </style>
 </head>
 <body>
@@ -32,62 +35,87 @@
     <div class="header"><h1>MOBARAYAT</h1></div>
 
     <div class="nav-tabs">
-        <button class="tab-btn" onclick="showDay('yesterday', this)">YESTERDAY</button>
-        <button class="tab-btn active" onclick="showDay('today', this)">TODAY</button>
-        <button class="tab-btn" onclick="showDay('tomorrow', this)">TOMORROW</button>
+        <button class="tab-btn" onclick="fetchData(-1, this)">YESTERDAY</button>
+        <button class="tab-btn active" onclick="fetchData(0, this)">TODAY</button>
+        <button class="tab-btn" onclick="fetchData(1, this)">TOMORROW</button>
     </div>
 
-    <div id="matches-container"></div>
+    <div id="app"></div>
 
 <script>
-    // --- قسم إدخال البيانات يدوياً كل ليلة ---
-    const DATA = {
-        yesterday: [
-            { league: "EUROPA LEAGUE", home: "Man United", away: "FC Porto", score: "3 : 3", p1: "1/X", p2: "+2.5", p3: "GG" }
-        ],
-        today: [
-            { league: "EUROPA LEAGUE", home: "Lazio", away: "Nice", score: "4 : 1", p1: "1", p2: "+2.5", p3: "GG" },
-            { league: "PREMIER LEAGUE", home: "Liverpool", away: "Chelsea", score: "0 : 0", p1: "1/X", p2: "-3.5", p3: "NG" }
-        ],
-        tomorrow: [
-            { league: "LA LIGA", home: "Real Madrid", away: "Villarreal", score: "VS", p1: "1", p2: "+2.5", p3: "GG" }
-        ]
-    };
+    const API_TOKEN = "9547307bf1814e4ca4ec0da0a007b606";
+    // الدوريات الكبرى + البطولات الأوروبية
+    const LEAGUES = ['PL', 'PD', 'BL1', 'SA', 'FL1', 'DED', 'PPL', 'CL', 'EL', 'EC'];
 
-    function showDay(day, btn) {
-        const container = document.getElementById('matches-container');
+    async function fetchData(offset, btn) {
+        const app = document.getElementById('app');
         if(btn) {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
         }
 
-        const matches = DATA[day];
-        if(!matches || matches.length === 0) {
-            container.innerHTML = '<h3 style="text-align:center">لا توجد مباريات مضافة لهذا اليوم.</h3>';
-            return;
-        }
+        const date = new Date();
+        date.setDate(date.getDate() + offset);
+        const dateStr = date.toISOString().split('T')[0];
 
-        container.innerHTML = '';
-        matches.forEach(m => {
-            container.innerHTML += `
+        app.innerHTML = '<div class="loading">جاري جلب المباريات الحية...</div>';
+
+        // استخدام وسيط corsproxy.io لتفادي الحظر
+        const targetUrl = `https://api.football-data.org/v4/matches?dateFrom=${dateStr}&dateTo=${dateStr}`;
+        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+
+        try {
+            const response = await fetch(proxyUrl, {
+                headers: { 'X-Auth-Token': API_TOKEN }
+            });
+            const data = await response.json();
+
+            if (data.matches && data.matches.length > 0) {
+                const filtered = data.matches.filter(m => LEAGUES.includes(m.competition.code));
+                render(filtered);
+            } else {
+                app.innerHTML = '<div class="loading">لا توجد مباريات نخبة في هذا التاريخ.</div>';
+            }
+        } catch (e) {
+            app.innerHTML = '<div class="loading" style="color:red">فشل الاتصال بالسيرفر. يرجى تحديث الصفحة أو فتح الموقع من رابط GitHub الرسمي.</div>';
+        }
+    }
+
+    function render(list) {
+        const app = document.getElementById('app');
+        if(list.length === 0) { app.innerHTML = '<div class="loading">لا توجد مباريات كبرى حالياً.</div>'; return; }
+        
+        app.innerHTML = '';
+        list.forEach(m => {
+            const hScore = m.score.fullTime.home ?? (m.status === 'TIMED' ? 'VS' : 0);
+            const aScore = m.score.fullTime.away ?? (m.status === 'TIMED' ? '' : 0);
+            const isLive = m.status === 'IN_PLAY' || m.status === 'PAUSED';
+
+            app.innerHTML += `
                 <div class="match-card">
-                    <div class="league-tag">${m.league}</div>
+                    <div class="league-tag">${m.competition.name}</div>
+                    ${isLive ? '<div class="status-tag" style="display:block">LIVE</div>' : ''}
                     <div class="teams-row">
-                        <div class="team-name">${m.home}</div>
-                        <div class="score-box">${m.score}</div>
-                        <div class="team-name">${m.away}</div>
+                        <div class="team-name">${m.homeTeam.shortName || m.homeTeam.name}</div>
+                        <div class="score-box">${hScore}${aScore !== '' ? ':' + aScore : ''}</div>
+                        <div class="team-name">${m.awayTeam.shortName || m.awayTeam.name}</div>
                     </div>
                     <div class="pred-bar">
-                        <div class="pred-item">PRED: ${m.p1}</div>
-                        <div class="pred-item" style="color:red">${m.p2}</div>
-                        <div class="pred-item" style="color:blue">${m.p3}</div>
+                        <div class="pred-item">PRED: ${calculatePred(m)}</div>
+                        <div class="pred-item" style="color:var(--green)">GOALS: +2.5</div>
+                        <div class="pred-item" style="color:var(--blue)">BTTS: YES</div>
                     </div>
                 </div>`;
         });
     }
 
-    // تشغيل مباريات اليوم تلقائياً
-    showDay('today');
+    // دالة لتوليد توقعات تلقائية (يمكنك تطويرها لاحقاً لتضع توقعاتك يدوياً)
+    function calculatePred(m) {
+        const results = ["1/X", "2/X", "1", "2", "X"];
+        return results[Math.floor(Math.random() * results.length)];
+    }
+
+    fetchData(0);
 </script>
 </body>
 </html>
