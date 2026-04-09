@@ -2,116 +2,75 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>MOBARAYAT - ELITE PREDICTIONS</title>
+    <title>MOBARAYAT - PRO</title>
     <style>
-        :root { --black: #000; --yellow: #ffff00; --green: #2ecc71; --blue: #3498db; }
-        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f4f4f4; margin: 0; padding: 10px; }
-        .container { max-width: 800px; margin: 0 auto; }
-        .header { background: #000; color: #fff; text-align: center; padding: 30px; border-bottom: 8px solid var(--yellow); margin-bottom: 20px; }
-        .header h1 { margin: 0; font-size: 2.5rem; letter-spacing: 3px; }
-        
-        .nav-tabs { display: flex; justify-content: center; gap: 5px; margin-bottom: 25px; direction: ltr; }
-        .tab-btn { flex: 1; border: 3px solid #000; background: #fff; padding: 15px; font-weight: 900; cursor: pointer; transition: 0.3s; }
-        .tab-btn.active { background: #000; color: #fff; }
-
-        .match-card { background: #fff; border: 4px solid #000; margin-bottom: 25px; position: relative; }
-        .league-tag { background: #000; color: #fff; padding: 5px 15px; font-size: 0.8rem; font-weight: bold; display: inline-block; }
-        
-        .teams-area { display: flex; align-items: center; justify-content: space-between; padding: 20px; text-align: center; }
-        .team { flex: 1; font-size: 1.2rem; font-weight: 900; }
-        .score-display { font-size: 4.5rem; font-weight: 900; padding: 10px 0; border-top: 1px solid #eee; text-align: center; }
-        
-        .prediction-bar { background: var(--yellow); display: flex; border-top: 4px solid #000; direction: ltr; }
-        .pred-item { flex: 1; padding: 12px; border-right: 2px solid #000; font-weight: 900; font-size: 1.1rem; text-align: center; }
-        .pred-item:last-child { border-right: none; }
-        
-        .loading { text-align: center; padding: 50px; font-size: 1.5rem; font-weight: bold; }
+        :root { --black: #000; --yellow: #ffff00; }
+        body { font-family: sans-serif; background: #f4f4f4; text-align: center; padding: 20px; }
+        .header { background: #000; color: #fff; padding: 20px; border-bottom: 5px solid var(--yellow); margin-bottom: 20px; }
+        .nav { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
+        .btn { border: 3px solid #000; background: #fff; padding: 10px 20px; font-weight: bold; cursor: pointer; }
+        .btn.active { background: #000; color: #fff; }
+        .card { background: #fff; border: 4px solid #000; margin: 10px auto; max-width: 600px; padding: 15px; }
+        .pred { background: var(--yellow); border-top: 3px solid #000; margin-top: 10px; padding: 10px; display: flex; justify-content: space-around; font-weight: bold; }
     </style>
 </head>
 <body>
 
-<div class="container">
     <div class="header"><h1>MOBARAYAT</h1></div>
-
-    <div class="nav-tabs">
-        <button class="tab-btn" onclick="init(-1, this)">YESTERDAY</button>
-        <button class="tab-btn active" onclick="init(0, this)">TODAY</button>
-        <button class="tab-btn" onclick="init(1, this)">TOMORROW</button>
+    <div class="nav">
+        <button class="btn" onclick="start(-1, this)">YESTERDAY</button>
+        <button class="btn active" onclick="start(0, this)">TODAY</button>
+        <button class="btn" onclick="start(1, this)">TOMORROW</button>
     </div>
-
-    <div id="app"></div>
-</div>
+    <div id="display"></div>
 
 <script>
-    const API_TOKEN = "9547307bf1814e4ca4ec0da0a007b606";
-    // الدوريات الثمانية الكبرى + البرتغالي + الهولندي والبلجيكي + البطولات الأوروبية
-    const ELITE_IDS = ['PL', 'PD', 'BL1', 'SA', 'FL1', 'DED', 'BSA', 'PPL', 'CL', 'EL', 'EC'];
+    const TOKEN = "9547307bf1814e4ca4ec0da0a007b606";
+    const LEAGUES = ['PL', 'PD', 'BL1', 'SA', 'FL1', 'DED', 'BSA', 'CL', 'EL', 'EC'];
 
-    async function init(offset, btn) {
-        const app = document.getElementById('app');
-        if(btn) {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-        }
-
-        const date = new Date();
-        date.setDate(date.getDate() + offset);
-        const dateStr = date.toISOString().split('T')[0];
-
-        // ميزة حفظ البيانات: استرجاعها من الذاكرة المحلية (localStorage)
-        const cached = localStorage.getItem('mob_' + dateStr);
-        if(cached) { render(JSON.parse(cached)); return; }
-
-        app.innerHTML = '<div class="loading">جاري جلب مباريات النخبة...</div>';
+    async function start(offset, el) {
+        const box = document.getElementById('display');
+        if(el) { document.querySelectorAll('.btn').forEach(b => b.classList.remove('active')); el.classList.add('active'); }
+        
+        const d = new Date();
+        d.setDate(d.getDate() + offset);
+        const s = d.toISOString().split('T')[0];
+        
+        box.innerHTML = "<h3>جاري جلب المباريات أوتوماتيكياً...</h3>";
 
         try {
-            // استخدام بروكسي لتجاوز حماية المتصفح (CORS)
-            const url = `https://api.football-data.org/v4/matches?dateFrom=${dateStr}&dateTo=${dateStr}`;
-            const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
-            const json = await res.json();
-            const data = JSON.parse(json.contents);
+            // استخدام وسيط (Proxy) لتفادي حظر المتصفح للملفات المحلية
+            const api = `https://api.football-data.org/v4/matches?dateFrom=${s}&dateTo=${s}`;
+            const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(api)}`);
+            const j = await r.json();
+            const data = JSON.parse(j.contents);
 
             if(data.matches) {
-                const filtered = data.matches.filter(m => ELITE_IDS.includes(m.competition.code));
-                localStorage.setItem('mob_' + dateStr, JSON.stringify(filtered));
-                render(filtered);
+                const games = data.matches.filter(m => LEAGUES.includes(m.competition.code));
+                render(games);
             }
-        } catch (e) {
-            app.innerHTML = '<div class="loading" style="color:red">يرجى فتح الموقع عبر رابط GitHub الرسمي لتشغيل الأوتوماتيك.</div>';
+        } catch(e) {
+            box.innerHTML = "<h3 style='color:red'>يرجى فتح الرابط من المتصفح (وليس من الملف في جهازك)</h3>";
         }
     }
 
-    function render(matches) {
-        const app = document.getElementById('app');
-        app.innerHTML = '';
-        if(matches.length === 0) {
-            app.innerHTML = '<div class="loading">لا توجد مباريات كبرى مبرمجة لهذا التاريخ.</div>';
-            return;
-        }
-
-        matches.forEach(m => {
-            const hScore = m.score.fullTime.home ?? '-';
-            const aScore = m.score.fullTime.away ?? '-';
-
-            app.innerHTML += `
-                <div class="match-card">
-                    <div class="league-tag">${m.competition.name}</div>
-                    <div class="teams-area">
-                        <div class="team">${m.homeTeam.shortName || m.homeTeam.name}</div>
-                        <div style="font-weight:bold">VS</div>
-                        <div class="team">${m.awayTeam.shortName || m.awayTeam.name}</div>
-                    </div>
-                    <div class="score-display">${hScore} : ${aScore}</div>
-                    <div class="prediction-bar">
-                        <div class="pred-item">PRED: 1 / 2</div>
-                        <div class="pred-item" style="color:var(--green)">+2.5</div>
-                        <div class="pred-item" style="color:var(--blue)">B/NB: B</div>
+    function render(list) {
+        const box = document.getElementById('display');
+        box.innerHTML = list.length ? "" : "<h3>لا توجد مباريات كبرى اليوم.</h3>";
+        list.forEach(m => {
+            box.innerHTML += `
+                <div class="card">
+                    <small>${m.competition.name}</small>
+                    <h3>${m.homeTeam.name} ${m.score.fullTime.home ?? '-'} : ${m.score.fullTime.away ?? '-'} ${m.awayTeam.name}</h3>
+                    <div class="pred">
+                        <span>PRED: 1/X</span>
+                        <span>+2.5</span>
+                        <span>GG: YES</span>
                     </div>
                 </div>`;
         });
     }
-
-    init(0);
+    start(0);
 </script>
 </body>
 </html>
